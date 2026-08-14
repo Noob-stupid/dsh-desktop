@@ -80,7 +80,8 @@
     const USER_URL = 'https://api.github.com/user';
 
     let pollTimer = null;
-    let pollInterval = 3000;
+    let pollInterval = 5000;
+    let serverInterval = 5000;
     let attempts = 0;
 
     function stopPolling() { if (pollTimer) { clearTimeout(pollTimer); clearInterval(pollTimer); pollTimer = null; } }
@@ -163,8 +164,9 @@
         return 'retry';
       }
       if (data.error === 'slow_down') {
-        pollInterval += 5000;
-        $('flow-hint').textContent = 'GitHub 要求放慢轮询，继续等待…';
+        // 严格遵守 GitHub 给出的间隔：每次加一个服务器间隔
+        pollInterval += serverInterval;
+        $('flow-hint').textContent = 'GitHub 要求放慢轮询，已自动加长间隔，继续等待…（第 ' + attempts + ' 次）';
         return 'retry';
       }
       if (data.error === 'expired_token' || data.error === 'access_denied') {
@@ -192,19 +194,25 @@
     $('login-btn').addEventListener('click', async () => {
       $('flow-err').classList.add('hidden');
       attempts = 0;
-      pollInterval = 3000;
+      serverInterval = 5000;
+      pollInterval = 5000;
+      $('login-btn').disabled = true;
       try {
         const data = await postForm(DEVICE_CODE_URL,
           'client_id=' + CLIENT_ID + '&scope=' + encodeURIComponent(SCOPES));
         if (typeof data.device_code !== 'string' || typeof data.user_code !== 'string') {
           throw new Error('GitHub 设备码响应格式异常');
         }
+        // 从一开始就遵守 GitHub 要求的轮询间隔，避免触发 slow_down
+        serverInterval = Math.max(Number(data.interval) || 5, 3) * 1000;
+        pollInterval = serverInterval;
         $('user-code').textContent = data.user_code;
         $('open-browser').disabled = false;
         $('flow-hint').textContent = '等待授权中…';
         $('flow-card').classList.remove('hidden');
         startPolling(data.device_code);
       } catch (e) {
+        $('login-btn').disabled = false;
         $('flow-err').textContent = '发起登录失败：' + e.message;
         $('flow-err').classList.remove('hidden');
       }
