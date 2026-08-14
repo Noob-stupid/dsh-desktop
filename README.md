@@ -1,3 +1,5 @@
+<img width="641" height="696" alt="576e3125-a190-4608-a42b-60010b6df02d" src="https://github.com/user-attachments/assets/bb7c1991-9346-4c20-8dc2-5d884515c522" />
+
 # DSH GitHub Login —— 独立的 GitHub 可视化登录插件
 
 一个零终端的 GitHub 登录小工具：打开窗口 → 生成设备码 → 授权 → 完成。
@@ -58,7 +60,7 @@ GitHub Device Flow：
 
 ## 帮助 / Help
 
-遇到问题先看这里；仍有疑问请到 [Issues](https://github.com/Noob-stupid/dsh-github-login/issues) 提问。
+遇到问题先看这里；仍有疑问请到 [议题](https://github.com/Noob-stupid/dsh-github-login/issues) 提问。
 
 - **一直"等待授权"**：轮询与浏览器共用同一网络通道，浏览器能打开 GitHub 就一定能完成；
   提示行会显示轮询次数，卡住时把提示文字发到 Issue。
