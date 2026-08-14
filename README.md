@@ -4,9 +4,28 @@
 
 # DSH GitHub Login —— 独立的 GitHub 可视化登录插件
 
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
+![license](https://img.shields.io/github/license/Noob-stupid/dsh-github-login)
+![last-commit](https://img.shields.io/github/last-commit/Noob-stupid/dsh-github-login)
+
 一个零终端的 GitHub 登录小工具：打开窗口 → 生成设备码 → 授权 → 完成。
 **设备码流程在窗口内（Chromium 网络栈）执行**，与你的浏览器共用同一网络通道——
 浏览器能打开 GitHub，这里就能完成登录，不受终端/代理配置差异影响。
+
+## 安装（DSH 插件模式）
+
+一条命令装进 DSH，并自动启用宿主端插件（提供登录状态接口 + 一键唤起登录窗口）：
+
+```sh
+dsh plugin --profile web add github:Noob-stupid/dsh-github-login
+```
+
+宿主端环回接口：
+
+- `GET  /github-auth/status` → `{ok, loggedIn, login}`（只含账号名，绝不下发令牌）
+- `POST /github-auth/open`   → 唤起登录工具窗口（本机存在 exe 时直接启动）
+
+独立工具用法（不带 DSH 也行）：
 
 ## 功能
 

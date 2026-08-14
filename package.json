@@ -2,8 +2,22 @@
   "name": "dsh-github-login",
   "productName": "DSH GitHub Login",
   "version": "0.1.0",
-  "description": "独立的 GitHub 可视化登录工具：设备码流程、零终端，令牌同步 gh CLI",
+  "description": "GitHub 可视化登录：独立 Electron 工具 + DSH 宿主端插件（dsh plugin add 安装）",
   "main": "main.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "github-login"
+  ],
   "author": "Noob-stupid",
   "license": "MIT",
   "private": true,
