@@ -1,9 +1,13 @@
 # DSH GitHub Login —— 独立的 GitHub 可视化登录插件
 
-一个零终端的 GitHub 登录小工具：打开窗口 → 生成设备码 → 浏览器输码授权 → 完成。
+一个零终端的 GitHub 登录小工具：打开窗口 → 生成设备码 → 授权 → 完成。
 **设备码流程在窗口内（Chromium 网络栈）执行**，与你的浏览器共用同一网络通道——
 浏览器能打开 GitHub，这里就能完成登录，不受终端/代理配置差异影响。
 
+## 功能
+
+- **窗口内授权**：授权页直接内嵌在窗口里（`<webview>`），带 **前进 / 后退 / 刷新** 按钮，
+  也可以一键改用外部浏览器打开；
 - 登录成功后令牌保存在 `~/.dsh/github-auth.json`；
 - 同时同步进 gh CLI 的 `~/.config/gh/hosts.yml`，**gh 命令行立即可用**（keyring 存在时 gh 以 keyring 优先）；
 - 托盘常驻：随时查看账号状态 / 一键退出登录；
@@ -17,6 +21,12 @@ npm install        # 安装 electron（已配置国内镜像）
 npm start          # 直接运行
 npm run dist       # 打包为便携版单文件 exe（dist/DSH-GitHub-Login.exe）
 ```
+
+## 与 dsh-plugin-hub 配套
+
+[dsh-plugin-hub](https://github.com/Noob-stupid/dsh-plugin-hub)（插件管理面板）会读取
+本工具写入的同一份令牌文件：登录后面板的 GitHub 市场显示"已登录 GitHub：<账号>"，
+且服务端回退通道自动带认证（搜索配额 10 → 30 次/分钟）。
 
 ## 集成到其他应用（如桌面客户端）
 
@@ -34,7 +44,7 @@ spawn('<path>/DSH-GitHub-Login.exe', [], { windowsHide: false })
 GitHub Device Flow：
 
 1. `POST https://github.com/login/device/code` → `user_code` + `device_code`
-2. 浏览器打开 `https://github.com/login/device`，输入 `user_code` 授权
+2. 在窗口内嵌浏览器（或外部浏览器）打开 `https://github.com/login/device`，输入 `user_code` 授权
 3. 按 GitHub 给出的 `interval` 轮询 `POST https://github.com/login/oauth/access_token`
 4. 拿到 `access_token` → 主进程落盘 + 写入 gh 配置
 
