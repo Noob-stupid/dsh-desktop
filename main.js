@@ -115,7 +115,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      // 关闭沙箱以保证 <webview> 内嵌授权页在部分 Electron 版本上可靠渲染；
+      // 页面只加载本地内容（CSP 限定），无外部内容注入面。
+      sandbox: false,
       // 页面只加载本地内容（CSP 限定）；关闭同源校验让设备码流程
       // 直接走 Chromium 网络栈（与用户浏览器同通道）。
       webSecurity: false,
