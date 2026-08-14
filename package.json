@@ -1,10 +1,10 @@
 {
-  "name": "dsh-desktop",
-  "productName": "DeepSeek Harness",
+  "name": "dsh-github-login",
+  "productName": "DSH GitHub Login",
   "version": "0.1.0",
-  "description": "DeepSeek Harness 桌面客户端：独立窗口 + 一键启动本地 DSH 服务",
+  "description": "独立的 GitHub 可视化登录工具：设备码流程、零终端，令牌同步 gh CLI",
   "main": "main.js",
-  "author": "dsh-desktop",
+  "author": "Noob-stupid",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -13,12 +13,11 @@
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
-    "sharp": "^0.35.3"
+    "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.deepseek.dsh.desktop",
-    "productName": "DeepSeek Harness",
+    "appId": "com.dsh.github.login",
+    "productName": "DSH GitHub Login",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -27,7 +26,6 @@
       "main.js",
       "preload.js",
       "renderer/**",
-      "assets/**",
       "build/icon.png"
     ],
     "win": {
@@ -41,7 +39,7 @@
       ]
     },
     "portable": {
-      "artifactName": "DeepSeek-Harness-Desktop.exe"
+      "artifactName": "DSH-GitHub-Login.exe"
     }
   }
 }
