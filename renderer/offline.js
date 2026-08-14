@@ -3,6 +3,7 @@ const logEl = document.getElementById('log');
 const btnStart = document.getElementById('btn-start');
 const btnStop = document.getElementById('btn-stop');
 const btnCheck = document.getElementById('btn-check');
+const btnGithub = document.getElementById('btn-github');
 
 function setStatus(text, cls) {
   statusEl.textContent = text;
@@ -41,4 +42,8 @@ btnCheck.addEventListener('click', async () => {
   const up = await window.dshDesktop.check();
   setStatus(up ? '服务已连接，正在进入主界面…' : '本地 DSH 服务未运行', up ? 'status-up' : 'status-down');
   if (!up) btnStart.disabled = false;
+});
+
+btnGithub.addEventListener('click', async () => {
+  await window.dshDesktop.githubOpenLoginWindow();
 });

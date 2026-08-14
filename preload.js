@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('dshDesktop', {
   githubStatus: () => ipcRenderer.invoke('github:status'),
   githubLogout: () => ipcRenderer.invoke('github:logout'),
   githubOpenBrowser: (url) => ipcRenderer.invoke('github:openBrowser', url),
+  githubOpenLoginWindow: () => ipcRenderer.invoke('github:openLoginWindow'),
 });

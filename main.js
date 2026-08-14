@@ -260,10 +260,12 @@ function openLoginWindow() {
 
 function buildTrayMenu() {
   const record = readAuthFile();
+  // 原生菜单在部分 Windows 上渲染 CJK 会乱码，标签统一使用 ASCII；
+  // 中文文案放在 HTML 窗口（github-login.html / offline.html）中。
   return Menu.buildFromTemplate([
-    { label: '显示主窗口', click: () => { if (win && !win.isDestroyed()) { win.show(); win.focus(); } } },
+    { label: 'Show window', click: () => { if (win && !win.isDestroyed()) { win.show(); win.focus(); } } },
     {
-      label: record ? `GitHub：${record.login}（点击退出登录）` : 'GitHub：登录…',
+      label: record ? `GitHub: ${record.login} (click to log out)` : 'GitHub: login...',
       click: () => {
         if (readAuthFile()) {
           githubLogout();
@@ -274,7 +276,7 @@ function buildTrayMenu() {
       },
     },
     { type: 'separator' },
-    { label: '退出', click: () => app.quit() },
+    { label: 'Quit', click: () => app.quit() },
   ]);
 }
 
@@ -291,6 +293,32 @@ function createTray() {
   } catch (error) {
     log('托盘创建失败: ' + error.message);
   }
+}
+
+// ── 应用菜单（登录入口始终可见，不依赖托盘）────────────────────────────────
+
+function buildAppMenu() {
+  // 同托盘：原生菜单用 ASCII 标签，避免 Windows 上 CJK 乱码。
+  return Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Reload', role: 'reload' },
+        { label: 'Developer Tools', role: 'toggleDevTools' },
+        { type: 'separator' },
+        { label: 'Quit', role: 'quit' },
+      ],
+    },
+    {
+      label: 'GitHub',
+      submenu: [
+        {
+          label: 'Login / account...',
+          click: () => openLoginWindow(),
+        },
+      ],
+    },
+  ]);
 }
 
 // ── 服务启停 ───────────────────────────────────────────────────────────────
@@ -413,6 +441,10 @@ ipcMain.handle('github:openBrowser', (_e, url) => {
   if (typeof url === 'string' && /^https:\/\//u.test(url)) shell.openExternal(url);
   return { ok: true };
 });
+ipcMain.handle('github:openLoginWindow', () => {
+  openLoginWindow();
+  return { ok: true };
+});
 
 function createWindow() {
   win = new BrowserWindow({
@@ -420,7 +452,7 @@ function createWindow() {
     height: 820,
     minWidth: 960,
     minHeight: 600,
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     icon: path.join(__dirname, 'build', 'icon.png'),
     backgroundColor: '#0e1116',
     title: 'DeepSeek Harness',
@@ -457,6 +489,7 @@ if (!gotLock) {
     }
   });
   app.whenReady().then(() => {
+    Menu.setApplicationMenu(buildAppMenu());
     createWindow();
     createTray();
     boot();
