@@ -119,6 +119,8 @@ function createWindow() {
       // 页面只加载本地内容（CSP 限定）；关闭同源校验让设备码流程
       // 直接走 Chromium 网络栈（与用户浏览器同通道）。
       webSecurity: false,
+      // 授权页以 <webview> 内嵌在窗口里（带前进/后退/刷新）
+      webviewTag: true,
     },
   });
   win.loadFile(path.join(__dirname, 'renderer', 'github-login.html'));

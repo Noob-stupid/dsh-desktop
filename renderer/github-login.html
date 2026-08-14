@@ -40,6 +40,8 @@
     .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .dot-ok { background: #3fb950; }
     .dot-off { background: #6e7681; }
+    webview { width: 100%; height: 380px; border: 1px solid #30363d; border-radius: 8px; margin-top: 8px; }
+    #browser-url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -61,10 +63,22 @@
     <div>请在浏览器中完成授权：</div>
     <div class="code" id="user-code">----</div>
     <div class="row">
-      <button id="open-browser" class="primary">打开浏览器授权</button>
+      <button id="open-browser" class="primary">在窗口内授权</button>
+      <button id="open-external" class="hidden">改用外部浏览器</button>
       <span class="muted" id="flow-hint">等待授权中…</span>
     </div>
     <div class="err hidden" id="flow-err"></div>
+  </div>
+
+  <div class="card hidden" id="browser-card">
+    <div class="row">
+      <button id="btn-back" title="后退">←</button>
+      <button id="btn-forward" title="前进">→</button>
+      <button id="btn-reload" title="刷新">⟳</button>
+      <span class="muted" id="browser-url"></span>
+      <button id="btn-close-browser">关闭</button>
+    </div>
+    <webview id="wv" src="about:blank"></webview>
   </div>
 
   <script>
@@ -208,6 +222,7 @@
         pollInterval = serverInterval;
         $('user-code').textContent = data.user_code;
         $('open-browser').disabled = false;
+        $('open-external').classList.remove('hidden');
         $('flow-hint').textContent = '等待授权中…';
         $('flow-card').classList.remove('hidden');
         startPolling(data.device_code);
@@ -218,11 +233,36 @@
       }
     });
 
+    // ── 内置浏览器（授权页开在窗口里，带前进/后退/刷新）────────────────────
+    const wv = $('wv');
+    const showUrl = (e) => { if (e && e.url) $('browser-url').textContent = e.url; };
+    wv.addEventListener('did-navigate', showUrl);
+    wv.addEventListener('did-navigate-in-page', showUrl);
+    const openEmbedded = (url) => {
+      $('browser-card').classList.remove('hidden');
+      if (wv.getURL() !== url) wv.loadURL(url).catch(() => {});
+    };
+    $('btn-back').addEventListener('click', () => { try { wv.goBack(); } catch {} });
+    $('btn-forward').addEventListener('click', () => { try { wv.goForward(); } catch {} });
+    $('btn-reload').addEventListener('click', () => { try { wv.reload(); } catch {} });
+    $('btn-close-browser').addEventListener('click', () => {
+      $('browser-card').classList.add('hidden');
+      wv.loadURL('about:blank').catch(() => {});
+    });
+
     $('open-browser').addEventListener('click', async () => {
+      const code = $('user-code').textContent;
+      try { navigator.clipboard.writeText(code); } catch {}
+      openEmbedded('https://github.com/login/device');
+      $('flow-hint').textContent = '已在下方窗口打开授权页，请输入：' + code + '（已复制到剪贴板）';
+      $('open-browser').disabled = true;
+    });
+
+    $('open-external').addEventListener('click', async () => {
       const code = $('user-code').textContent;
       await dsh.githubOpenBrowser('https://github.com/login/device');
       try { navigator.clipboard.writeText(code); } catch {}
-      $('flow-hint').textContent = '已在浏览器打开授权页，请输入：' + code + '（已复制到剪贴板）';
+      $('flow-hint').textContent = '已在系统浏览器打开授权页，请输入：' + code + '（已复制到剪贴板）';
       $('open-browser').disabled = true;
     });
 
