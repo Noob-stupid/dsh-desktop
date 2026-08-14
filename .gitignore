@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.builder-cache/
+.edge-profile/
+.electron-cache/
+.npm-cache/
+*.log
+.DS_Store
+Thumbs.db

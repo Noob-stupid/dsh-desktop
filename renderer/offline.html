@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+  <title>DeepSeek Harness — 连接中</title>
+  <link rel="stylesheet" href="offline.css" />
+</head>
+<body>
+  <main class="card">
+    <img class="logo" src="../assets/favicon.svg" alt="DSH" />
+    <h1>DeepSeek Harness 桌面版</h1>
+    <p id="status" class="status status-down">正在检测本地服务…</p>
+    <div class="actions">
+      <button id="btn-start" class="primary">启动 DSH 服务</button>
+      <button id="btn-stop" disabled>停止服务</button>
+      <button id="btn-check">重新检测</button>
+    </div>
+    <details class="logs">
+      <summary>服务日志</summary>
+      <pre id="log"></pre>
+    </details>
+    <p class="hint">
+      本窗口是 DSH 本地服务的专用入口。服务启动后会自动进入主界面；
+      关闭窗口时，由本应用启动的服务会一并停止（已有服务不受影响）。
+    </p>
+  </main>
+  <script src="offline.js"></script>
+</body>
+</html>

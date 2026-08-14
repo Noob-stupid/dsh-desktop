@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <title>GitHub 登录</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #0e1116; color: #e6e6e6;
+      padding: 28px 24px; font-size: 14px; line-height: 1.6;
+      user-select: none;
+    }
+    h1 { font-size: 16px; margin-bottom: 4px; }
+    .sub { color: #8b949e; font-size: 12px; margin-bottom: 20px; }
+    .card {
+      border: 1px solid #30363d; border-radius: 10px;
+      background: #161b22; padding: 16px; margin-bottom: 14px;
+    }
+    .row { display: flex; align-items: center; gap: 10px; }
+    .code {
+      font-family: ui-monospace, Consolas, monospace; font-size: 22px;
+      letter-spacing: 3px; color: #58a6ff; font-weight: 700;
+      margin: 10px 0; user-select: text;
+    }
+    button {
+      font: inherit; color: #e6e6e6; background: #21262d;
+      border: 1px solid #30363d; border-radius: 8px;
+      padding: 8px 16px; cursor: pointer;
+    }
+    button:hover { border-color: #58a6ff; }
+    button:disabled { opacity: .5; cursor: default; }
+    button.primary { background: #238636; border-color: #2ea043; color: #fff; }
+    button.primary:hover { border-color: #3fb950; }
+    .muted { color: #8b949e; font-size: 12px; }
+    .err { color: #f85149; font-size: 12px; margin-top: 8px; }
+    .hidden { display: none; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot-ok { background: #3fb950; }
+    .dot-off { background: #6e7681; }
+  </style>
+</head>
+<body>
+  <h1>GitHub 登录</h1>
+  <p class="sub">可视化登录，全程无需终端。令牌保存在 <span class="muted">~/.dsh/github-auth.json</span>，并同步给 gh CLI。</p>
+
+  <div class="card" id="status-card">
+    <div class="row">
+      <span class="status-dot dot-off" id="status-dot"></span>
+      <span id="status-text">正在检查登录状态…</span>
+    </div>
+    <div style="margin-top:10px">
+      <button id="login-btn" class="primary hidden">登录 GitHub</button>
+      <button id="logout-btn" class="hidden">退出登录</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="flow-card">
+    <div>请在浏览器中完成授权：</div>
+    <div class="code" id="user-code">----</div>
+    <div class="row">
+      <button id="open-browser" class="primary">打开浏览器授权</button>
+      <span class="muted" id="flow-hint">等待授权中…</span>
+    </div>
+    <div class="err hidden" id="flow-err"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const dsh = window.dshDesktop;
+    let pollTimer = null;
+    let pollDelay = 3000;
+
+    function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+    async function refreshStatus() {
+      try {
+        const s = await dsh.githubStatus();
+        $('status-dot').className = 'status-dot ' + (s.loggedIn ? 'dot-ok' : 'dot-off');
+        $('status-text').textContent = s.loggedIn
+          ? ('已登录：' + s.login + '（权限：' + (s.scopes.join(', ') || '无') + '）')
+          : '未登录';
+        $('login-btn').classList.toggle('hidden', s.loggedIn);
+        $('logout-btn').classList.toggle('hidden', !s.loggedIn);
+      } catch (e) {
+        $('status-text').textContent = '状态读取失败：' + e.message;
+      }
+    }
+
+    function poll() {
+      dsh.githubPoll().then((r) => {
+        if (!r.pending) {
+          stopPolling();
+          $('flow-card').classList.add('hidden');
+          if (r.ok) refreshStatus();
+        }
+      }).catch((e) => {
+        stopPolling();
+        $('flow-hint').textContent = '登录失败';
+        $('flow-err').textContent = e.message;
+        $('flow-err').classList.remove('hidden');
+        $('open-browser').disabled = false;
+      });
+    }
+
+    function startPolling() {
+      stopPolling();
+      pollTimer = setInterval(() => {
+        dsh.githubPoll().then((r) => {
+          if (!r.pending) {
+            stopPolling();
+            $('flow-card').classList.add('hidden');
+            if (r.ok) refreshStatus();
+          }
+        }).catch((e) => {
+          stopPolling();
+          $('flow-hint').textContent = '登录失败';
+          $('flow-err').textContent = e.message;
+          $('flow-err').classList.remove('hidden');
+          $('open-browser').disabled = false;
+        });
+      }, pollDelay);
+    }
+
+    $('login-btn').addEventListener('click', async () => {
+      $('flow-err').classList.add('hidden');
+      try {
+        const r = await dsh.githubStart();
+        $('user-code').textContent = r.userCode;
+        $('open-browser').disabled = false;
+        $('flow-hint').textContent = '等待授权中…';
+        $('flow-card').classList.remove('hidden');
+        startPolling();
+      } catch (e) {
+        $('flow-err').textContent = '发起登录失败：' + e.message;
+        $('flow-err').classList.remove('hidden');
+      }
+    });
+
+    $('open-browser').addEventListener('click', async () => {
+      const code = $('user-code').textContent;
+      await dsh.githubOpenBrowser('https://github.com/login/device');
+      try { navigator.clipboard.writeText(code); } catch {}
+      $('flow-hint').textContent = '已在浏览器打开授权页，请输入：' + code + '（已复制到剪贴板）';
+      $('open-browser').disabled = true;
+    });
+
+    $('logout-btn').addEventListener('click', async () => {
+      await dsh.githubLogout();
+      await refreshStatus();
+    });
+
+    refreshStatus();
+  </script>
+</body>
+</html>

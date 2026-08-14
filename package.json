@@ -1,0 +1,47 @@
+{
+  "name": "dsh-desktop",
+  "productName": "DeepSeek Harness",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 桌面客户端：独立窗口 + 一键启动本地 DSH 服务",
+  "main": "main.js",
+  "author": "dsh-desktop",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "sharp": "^0.35.3"
+  },
+  "build": {
+    "appId": "com.deepseek.dsh.desktop",
+    "productName": "DeepSeek Harness",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "assets/**",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "DeepSeek-Harness-Desktop.exe"
+    }
+  }
+}
