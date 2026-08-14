@@ -1,4 +1,6 @@
 <img width="641" height="696" alt="576e3125-a190-4608-a42b-60010b6df02d" src="https://github.com/user-attachments/assets/bb7c1991-9346-4c20-8dc2-5d884515c522" />
+<img width="642" height="696" alt="601b77fd-517d-4be4-b2c8-b25a13c3e852" src="https://github.com/user-attachments/assets/45a31794-ab56-4e34-8826-fb362deef3dc" />
+<img width="642" height="695" alt="7efef08e-0326-47d3-bfa1-f55427fa6cb4" src="https://github.com/user-attachments/assets/e23560ca-41d3-4a83-bc14-1d20f884cd8a" />
 
 # DSH GitHub Login —— 独立的 GitHub 可视化登录插件
 
