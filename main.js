@@ -177,6 +177,24 @@ async function githubStart() {
   return { userCode: pendingDevice.userCode, verificationUri: pendingDevice.verificationUri };
 }
 
+/** 带重试地查询用户名；查询失败只影响显示名，不影响登录成功。 */
+async function fetchUserLogin(token) {
+  let lastError = null
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const user = await httpsJson(USER_URL, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+      if (typeof user.json?.login === 'string' && user.json.login) return user.json.login
+      lastError = new Error('用户信息响应格式异常')
+    } catch (error) {
+      lastError = error
+    }
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)))
+  }
+  return { login: null, error: lastError }
+}
+
 async function githubPoll() {
   const device = pendingDevice;
   if (!device) return { pending: false };
@@ -191,15 +209,23 @@ async function githubPoll() {
   });
   const data = res.json || {};
   if (typeof data.access_token === 'string' && data.access_token) {
-    const user = await httpsJson(USER_URL, {
-      headers: { authorization: `Bearer ${data.access_token}` },
-    });
-    const login = user.json?.login || 'unknown';
+    // 令牌拿到即视为登录成功并立即落盘；用户名查询是尽力而为的补充，
+    // api.github.com 在这台网络环境下可能被黑洞，绝不让它破坏已完成的授权。
+    const token = data.access_token;
     const scopes = String(data.scope || '').split(',').map((s) => s.trim()).filter(Boolean);
-    writeAuthFile({ login, token: data.access_token, scopes });
-    mergeGhHosts(login, data.access_token);
+    const userResult = await fetchUserLogin(token);
+    const login = typeof userResult === 'string' ? userResult : 'unknown';
+    writeAuthFile({ login, token, scopes });
+    mergeGhHosts(login, token);
     pendingDevice = null;
-    return { pending: false, ok: true, login, scopes };
+    return {
+      pending: false,
+      ok: true,
+      login,
+      scopes,
+      loginUnknown: login === 'unknown',
+      userQueryError: typeof userResult === 'string' ? null : String(userResult.error?.message ?? ''),
+    };
   }
   if (data.error === 'authorization_pending') return { pending: true };
   if (data.error === 'slow_down') {

@@ -89,39 +89,36 @@
       }
     }
 
-    function poll() {
-      dsh.githubPoll().then((r) => {
-        if (!r.pending) {
-          stopPolling();
-          $('flow-card').classList.add('hidden');
-          if (r.ok) refreshStatus();
-        }
-      }).catch((e) => {
-        stopPolling();
-        $('flow-hint').textContent = '登录失败';
-        $('flow-err').textContent = e.message;
-        $('flow-err').classList.remove('hidden');
-        $('open-browser').disabled = false;
-      });
-    }
-
     function startPolling() {
       stopPolling();
-      pollTimer = setInterval(() => {
+      const tick = () => {
         dsh.githubPoll().then((r) => {
           if (!r.pending) {
             stopPolling();
             $('flow-card').classList.add('hidden');
-            if (r.ok) refreshStatus();
+            if (r.ok) {
+              const suffix = r.loginUnknown ? '（授权成功；用户名稍后显示）' : '';
+              $('status-dot').className = 'status-dot dot-ok';
+              $('status-text').textContent = '登录成功：' + r.login + suffix;
+              $('login-btn').classList.add('hidden');
+              $('logout-btn').classList.remove('hidden');
+            }
           }
         }).catch((e) => {
-          stopPolling();
-          $('flow-hint').textContent = '登录失败';
-          $('flow-err').textContent = e.message;
-          $('flow-err').classList.remove('hidden');
-          $('open-browser').disabled = false;
+          // 只有明确失败才停止；网络抖动（超时/黑洞）保持轮询直到过期
+          if (/过期|拒绝/u.test(e.message)) {
+            stopPolling();
+            $('flow-hint').textContent = '登录失败';
+            $('flow-err').textContent = e.message;
+            $('flow-err').classList.remove('hidden');
+            $('open-browser').disabled = false;
+          } else {
+            $('flow-hint').textContent = '网络抖动，继续等待授权中…';
+          }
         });
-      }, pollDelay);
+      };
+      tick();
+      pollTimer = setInterval(tick, pollDelay);
     }
 
     $('login-btn').addEventListener('click', async () => {
