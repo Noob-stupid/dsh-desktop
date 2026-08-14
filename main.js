@@ -6,7 +6,6 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const https = require('https');
 
 const SERVER_URL = 'http://127.0.0.1:3080';
 const PING_TIMEOUT_MS = 2500;
@@ -45,20 +44,10 @@ function defaultDshHome() {
   return process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
 }
 
-// ── GitHub 可视化登录（Device Flow）─────────────────────────────────────────
-// 复用 GitHub CLI 的公开 OAuth client_id；令牌写入 %DSH_HOME%/github-auth.json
-// 并同步合并到 gh 的 hosts.yml（keyring 存在时 gh 仍以 keyring 优先）。
-// 本机网络到 github.com 存在中间设备干扰，故用 node:https 且放宽证书校验
-// （仅用于公开的登录/授权端点与用户信息查询）。
-
-const GITHUB_CLIENT_ID = '178c6fc778ccc68e1d6a'; // GitHub CLI 的 OAuth client_id
-const GITHUB_SCOPES = 'repo workflow gist read:org';
-const GITHUB_UA = 'dsh-desktop/0.1 (local GitHub login)';
-const DEVICE_CODE_URL = 'https://github.com/login/device/code';
-const ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token';
-const USER_URL = 'https://api.github.com/user';
-
-let pendingDevice = null; // { deviceCode, userCode, verificationUri, interval, expiresAt }
+// ── GitHub 可视化登录 ───────────────────────────────────────────────────────
+// 设备码流程在登录窗口（Chromium 渲染进程）内执行，与用户浏览器共用同一
+// 网络栈；主进程只负责令牌落盘（%DSH_HOME%/github-auth.json）与 gh hosts.yml
+// 同步（keyring 存在时 gh 仍以 keyring 优先）。
 
 function githubAuthFile() {
   return path.join(defaultDshHome(), 'github-auth.json');
@@ -66,39 +55,6 @@ function githubAuthFile() {
 
 function ghHostsFile() {
   return path.join(os.homedir(), '.config', 'gh', 'hosts.yml');
-}
-
-function httpsJson(url, options = {}) {
-  return new Promise((resolve, reject) => {
-    const target = new URL(url);
-    const req = https.request({
-      hostname: target.hostname,
-      path: target.pathname + target.search,
-      method: options.method || 'GET',
-      headers: {
-        'user-agent': GITHUB_UA,
-        accept: 'application/json',
-        ...options.headers,
-      },
-      rejectUnauthorized: false,
-    }, (res) => {
-      let body = '';
-      res.on('data', (chunk) => { body += chunk; });
-      res.on('end', () => {
-        let parsed = null;
-        try { parsed = JSON.parse(body); } catch {}
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(parsed?.error_description || parsed?.message || `GitHub 请求失败 (HTTP ${res.statusCode})`));
-          return;
-        }
-        resolve({ status: res.statusCode, json: parsed, text: body });
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(30000, () => req.destroy(new Error('GitHub 请求超时')));
-    if (options.body) req.write(options.body);
-    req.end();
-  });
 }
 
 function readAuthFile() {
@@ -157,90 +113,16 @@ function removeGhHostsSection() {
   fs.writeFileSync(file, lines.join('\n'), 'utf8');
 }
 
-async function githubStart() {
-  const res = await httpsJson(DEVICE_CODE_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: `client_id=${GITHUB_CLIENT_ID}&scope=${encodeURIComponent(GITHUB_SCOPES)}`,
-  });
-  const data = res.json || {};
-  if (typeof data.device_code !== 'string' || typeof data.user_code !== 'string') {
-    throw new Error('GitHub 设备码响应格式异常');
-  }
-  pendingDevice = {
-    deviceCode: data.device_code,
-    userCode: data.user_code,
-    verificationUri: typeof data.verification_uri === 'string' ? data.verification_uri : 'https://github.com/login/device',
-    interval: Math.max(Number(data.interval) || 5, 3),
-    expiresAt: Date.now() + (Number(data.expires_in) || 900) * 1000,
-  };
-  return { userCode: pendingDevice.userCode, verificationUri: pendingDevice.verificationUri };
-}
-
-/** 带重试地查询用户名；查询失败只影响显示名，不影响登录成功。 */
-async function fetchUserLogin(token) {
-  let lastError = null
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const user = await httpsJson(USER_URL, {
-        headers: { authorization: `Bearer ${token}` },
-      })
-      if (typeof user.json?.login === 'string' && user.json.login) return user.json.login
-      lastError = new Error('用户信息响应格式异常')
-    } catch (error) {
-      lastError = error
-    }
-    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)))
-  }
-  return { login: null, error: lastError }
-}
-
-async function githubPoll() {
-  const device = pendingDevice;
-  if (!device) return { pending: false };
-  if (Date.now() > device.expiresAt) {
-    pendingDevice = null;
-    throw new Error('验证码已过期，请重新发起登录');
-  }
-  const res = await httpsJson(ACCESS_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: `client_id=${GITHUB_CLIENT_ID}&device_code=${encodeURIComponent(device.deviceCode)}&grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:device_code')}`,
-  });
-  const data = res.json || {};
-  if (typeof data.access_token === 'string' && data.access_token) {
-    // 令牌拿到即视为登录成功并立即落盘；用户名查询是尽力而为的补充，
-    // api.github.com 在这台网络环境下可能被黑洞，绝不让它破坏已完成的授权。
-    const token = data.access_token;
-    const scopes = String(data.scope || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const userResult = await fetchUserLogin(token);
-    const login = typeof userResult === 'string' ? userResult : 'unknown';
-    writeAuthFile({ login, token, scopes });
-    mergeGhHosts(login, token);
-    pendingDevice = null;
-    return {
-      pending: false,
-      ok: true,
-      login,
-      scopes,
-      loginUnknown: login === 'unknown',
-      userQueryError: typeof userResult === 'string' ? null : String(userResult.error?.message ?? ''),
-    };
-  }
-  if (data.error === 'authorization_pending') return { pending: true };
-  if (data.error === 'slow_down') {
-    device.interval += 5;
-    return { pending: true };
-  }
-  if (data.error === 'expired_token') {
-    pendingDevice = null;
-    throw new Error('验证码已过期，请重新发起登录');
-  }
-  if (data.error === 'access_denied') {
-    pendingDevice = null;
-    throw new Error('授权被拒绝');
-  }
-  throw new Error(`授权失败：${data.error || '未知错误'}`);
+/** 登录窗口完成设备码流程后，把令牌交给主进程落盘。 */
+function githubSave(payload) {
+  const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
+  if (!token) return { ok: false, error: '缺少令牌' };
+  const login = typeof payload?.login === 'string' && payload.login ? payload.login : 'unknown';
+  const scopes = Array.isArray(payload?.scopes) ? payload.scopes.filter((s) => typeof s === 'string') : [];
+  writeAuthFile({ login, token, scopes });
+  mergeGhHosts(login, token);
+  refreshTrayMenu();
+  return { ok: true, login };
 }
 
 async function githubStatus() {
@@ -250,7 +132,6 @@ async function githubStatus() {
 }
 
 function githubLogout() {
-  pendingDevice = null;
   try { fs.rmSync(githubAuthFile(), { force: true }); } catch {}
   try { removeGhHostsSection(); } catch {}
   return { ok: true };
@@ -276,6 +157,9 @@ function openLoginWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // 登录窗口需要从 file:// 页面直接请求 github.com 完成设备码流程；
+      // 页面只加载本地内容（CSP 限定），关闭同源校验换取与用户浏览器一致的网络通道。
+      webSecurity: false,
     },
   });
   loginWin.loadFile(path.join(__dirname, 'renderer', 'github-login.html'));
@@ -459,8 +343,7 @@ async function boot() {
 ipcMain.handle('dsh:check', async () => await pingServer());
 ipcMain.handle('dsh:start', () => startServer());
 ipcMain.handle('dsh:stop', () => stopServer());
-ipcMain.handle('github:start', () => githubStart());
-ipcMain.handle('github:poll', () => githubPoll());
+ipcMain.handle('github:save', (_e, payload) => githubSave(payload));
 ipcMain.handle('github:status', () => githubStatus());
 ipcMain.handle('github:logout', () => githubLogout());
 ipcMain.handle('github:openBrowser', (_e, url) => {

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://github.com https://api.github.com; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src https://github.com https://api.github.com">
   <title>GitHub 登录</title>
   <style>
     :root { color-scheme: dark; }
@@ -70,10 +70,38 @@
   <script>
     const $ = (id) => document.getElementById(id);
     const dsh = window.dshDesktop;
-    let pollTimer = null;
-    let pollDelay = 3000;
 
-    function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+    // 设备码流程完全在本窗口内执行：与用户浏览器共用同一网络栈（Chromium），
+    // 浏览器能打开 GitHub，这里就能完成轮询——不依赖主进程的网络通道。
+    const CLIENT_ID = '178c6fc778ccc68e1d6a'; // GitHub CLI 的 OAuth client_id
+    const SCOPES = 'repo workflow gist read:org';
+    const DEVICE_CODE_URL = 'https://github.com/login/device/code';
+    const ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token';
+    const USER_URL = 'https://api.github.com/user';
+
+    let pollTimer = null;
+    let pollInterval = 3000;
+    let attempts = 0;
+
+    function stopPolling() { if (pollTimer) { clearTimeout(pollTimer); clearInterval(pollTimer); pollTimer = null; } }
+
+    async function postForm(url, body) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          accept: 'application/json',
+        },
+        body,
+        signal: AbortSignal.timeout(20000),
+      });
+      let data = null;
+      try { data = await res.json(); } catch {}
+      if (!res.ok) {
+        throw new Error((data && (data.error_description || data.message)) || ('GitHub HTTP ' + res.status));
+      }
+      return data;
+    }
 
     async function refreshStatus() {
       try {
@@ -89,47 +117,93 @@
       }
     }
 
-    function startPolling() {
+    async function pollOnce(deviceCode) {
+      attempts += 1;
+      let data;
+      try {
+        data = await postForm(ACCESS_TOKEN_URL,
+          'client_id=' + CLIENT_ID +
+          '&device_code=' + encodeURIComponent(deviceCode) +
+          '&grant_type=' + encodeURIComponent('urn:ietf:params:oauth:grant-type:device_code'));
+      } catch (e) {
+        $('flow-hint').textContent = '网络抖动，继续等待授权中…（第 ' + attempts + ' 次）';
+        return 'retry';
+      }
+      if (typeof data.access_token === 'string' && data.access_token) {
+        stopPolling();
+        $('flow-card').classList.add('hidden');
+        const token = data.access_token;
+        const scopes = String(data.scope || '').split(',').map((s) => s.trim()).filter(Boolean);
+        let login = null;
+        try {
+          const userRes = await fetch(USER_URL, {
+            headers: { authorization: 'Bearer ' + token },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (userRes.ok) {
+            const user = await userRes.json();
+            if (user && typeof user.login === 'string') login = user.login;
+          }
+        } catch {}
+        const save = await dsh.githubSave({ token, login, scopes });
+        if (save && save.ok) {
+          $('status-dot').className = 'status-dot dot-ok';
+          $('status-text').textContent = '登录成功：' + (login || save.login || 'unknown')
+            + (login ? '' : '（授权已生效；用户名暂时显示 unknown）');
+          $('login-btn').classList.add('hidden');
+          $('logout-btn').classList.remove('hidden');
+        } else {
+          $('flow-err').textContent = '令牌保存失败：' + ((save && save.error) || '未知错误');
+          $('flow-err').classList.remove('hidden');
+        }
+        return 'done';
+      }
+      if (data.error === 'authorization_pending') {
+        $('flow-hint').textContent = '等待授权中…（第 ' + attempts + ' 次）';
+        return 'retry';
+      }
+      if (data.error === 'slow_down') {
+        pollInterval += 5000;
+        $('flow-hint').textContent = 'GitHub 要求放慢轮询，继续等待…';
+        return 'retry';
+      }
+      if (data.error === 'expired_token' || data.error === 'access_denied') {
+        stopPolling();
+        $('flow-hint').textContent = '登录失败';
+        $('flow-err').textContent = data.error === 'expired_token' ? '验证码已过期，请重新发起登录' : '授权被拒绝';
+        $('flow-err').classList.remove('hidden');
+        $('open-browser').disabled = false;
+        return 'stop';
+      }
+      $('flow-hint').textContent = '授权状态未知：' + (data.error || '未知') + '（继续等待）';
+      return 'retry';
+    }
+
+    function startPolling(deviceCode) {
       stopPolling();
-      const tick = () => {
-        dsh.githubPoll().then((r) => {
-          if (!r.pending) {
-            stopPolling();
-            $('flow-card').classList.add('hidden');
-            if (r.ok) {
-              const suffix = r.loginUnknown ? '（授权成功；用户名稍后显示）' : '';
-              $('status-dot').className = 'status-dot dot-ok';
-              $('status-text').textContent = '登录成功：' + r.login + suffix;
-              $('login-btn').classList.add('hidden');
-              $('logout-btn').classList.remove('hidden');
-            }
-          }
-        }).catch((e) => {
-          // 只有明确失败才停止；网络抖动（超时/黑洞）保持轮询直到过期
-          if (/过期|拒绝/u.test(e.message)) {
-            stopPolling();
-            $('flow-hint').textContent = '登录失败';
-            $('flow-err').textContent = e.message;
-            $('flow-err').classList.remove('hidden');
-            $('open-browser').disabled = false;
-          } else {
-            $('flow-hint').textContent = '网络抖动，继续等待授权中…';
-          }
-        });
+      const tick = async () => {
+        if (!pollTimer) return;
+        const state = await pollOnce(deviceCode);
+        if (pollTimer && (state === 'retry')) pollTimer = setTimeout(tick, pollInterval);
       };
-      tick();
-      pollTimer = setInterval(tick, pollDelay);
+      pollTimer = setTimeout(tick, pollInterval);
     }
 
     $('login-btn').addEventListener('click', async () => {
       $('flow-err').classList.add('hidden');
+      attempts = 0;
+      pollInterval = 3000;
       try {
-        const r = await dsh.githubStart();
-        $('user-code').textContent = r.userCode;
+        const data = await postForm(DEVICE_CODE_URL,
+          'client_id=' + CLIENT_ID + '&scope=' + encodeURIComponent(SCOPES));
+        if (typeof data.device_code !== 'string' || typeof data.user_code !== 'string') {
+          throw new Error('GitHub 设备码响应格式异常');
+        }
+        $('user-code').textContent = data.user_code;
         $('open-browser').disabled = false;
         $('flow-hint').textContent = '等待授权中…';
         $('flow-card').classList.remove('hidden');
-        startPolling();
+        startPolling(data.device_code);
       } catch (e) {
         $('flow-err').textContent = '发起登录失败：' + e.message;
         $('flow-err').classList.remove('hidden');
