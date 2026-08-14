@@ -46,6 +46,17 @@ GitHub Device Flow：
 本仓库**只包含登录插件本身**，不包含任何桌面客户端代码。桌面客户端可在本地
 集成它（见上）；两者通过令牌文件共享登录状态。
 
+## 帮助 / Help
+
+遇到问题先看这里；仍有疑问请到 [Issues](https://github.com/Noob-stupid/dsh-github-login/issues) 提问。
+
+- **一直"等待授权"**：轮询与浏览器共用同一网络通道，浏览器能打开 GitHub 就一定能完成；
+  提示行会显示轮询次数，卡住时把提示文字发到 Issue。
+- **显示 unknown**：授权已成功、令牌已保存，只是用户名查询失败；重启程序后状态页会重试。
+- **gh 仍显示未登录**：本工具写入 `~/.config/gh/hosts.yml`；若系统 keyring 里有旧凭证，
+  gh 会优先用 keyring——先 `gh auth logout` 清掉旧凭证即可。
+- **如何退出登录**：托盘菜单 `GitHub: <账号> (click to log out)`，或窗口中点"退出登录"。
+
 ## License
 
 MIT
