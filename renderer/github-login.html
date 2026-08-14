@@ -42,6 +42,10 @@
     .dot-off { background: #6e7681; }
     webview { width: 100%; height: 380px; border: 1px solid #30363d; border-radius: 8px; margin-top: 8px; }
     #browser-url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .navrow { display: flex; align-items: center; gap: 6px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 6px 8px; }
+    .navbtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; min-width: 30px; padding: 0; border-radius: 6px; background: #21262d; border: 1px solid #30363d; color: #e6e6e6; cursor: pointer; }
+    .navbtn:hover { border-color: #58a6ff; }
+    .navbtn:active { background: #30363d; }
   </style>
 </head>
 <body>
@@ -71,12 +75,18 @@
   </div>
 
   <div class="card hidden" id="browser-card">
-    <div class="row">
-      <button id="btn-back" title="后退">←</button>
-      <button id="btn-forward" title="前进">→</button>
-      <button id="btn-reload" title="刷新">⟳</button>
+    <div class="navrow">
+      <button id="btn-back" class="navbtn" title="后退">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <button id="btn-forward" class="navbtn" title="前进">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+      <button id="btn-reload" class="navbtn" title="刷新">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      </button>
       <span class="muted" id="browser-url"></span>
-      <button id="btn-close-browser">关闭</button>
+      <button id="btn-close-browser" class="navbtn" title="关闭">✕</button>
     </div>
     <webview id="wv" src="about:blank"></webview>
   </div>
