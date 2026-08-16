@@ -89,6 +89,9 @@ GitHub Device Flow：
 - **显示 unknown**：授权已成功、令牌已保存，只是用户名查询失败；重启程序后状态页会重试。
 - **gh 仍显示未登录**：本工具写入 `~/.config/gh/hosts.yml`；若系统 keyring 里有旧凭证，
   gh 会优先用 keyring——先 `gh auth logout` 清掉旧凭证即可。
+- **浏览器打开 GitHub 显示未登录**：gh/DSH 令牌登录与浏览器网页登录是**两套独立会话**——
+  本工具认证的是 gh 命令行层（令牌写进 `github-auth.json` 与 `hosts.yml`），并不会登录你的浏览器；
+  浏览器需单独登录一次 github.com（或在授权时选"改用外部浏览器打开"，完成授权会顺带登录该浏览器）。
 - **如何退出登录**：托盘菜单 `GitHub: <账号> (click to log out)`，或窗口中点"退出登录"。
 
 ## License
